@@ -1,0 +1,4 @@
+[submodule "scale-agentex"]
+	path = scale-agentex
+	url = https://github.com/levilentz/scale-agentex.git
+	branch = zscaler
