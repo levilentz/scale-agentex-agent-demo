@@ -18,7 +18,7 @@ if docker build -f Dockerfile.base -t local-base:latest .; then
 
     # Run Docker Compose with build
     #docker compose build
-    docker compose -f docker-compose.slim.yaml up --build
+    docker compose -f scale-agentex/docker-compose.yaml -f docker-compose.slim.yaml up --build
 else
     echo "❌ Docker build failed. Docker Compose will not be executed."
     exit 1
