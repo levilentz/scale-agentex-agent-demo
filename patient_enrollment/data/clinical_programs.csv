@@ -1,0 +1,16 @@
+program_id,program_name,phase,description,min_age,max_age,eligible_genders,required_conditions,excluded_conditions,min_bmi,max_bmi,smoking_allowed,min_hemoglobin_a1c,max_hemoglobin_a1c,min_egfr,max_egfr,required_medications,excluded_medications,max_participants
+CP001,Diabetes Management with Novel GLP-1 Agonist,III,"Phase III trial evaluating a new GLP-1 receptor agonist for Type 2 diabetes management",18,75,M;F,diabetes,,25,40,former;never,7.0,10.0,45,,,insulin,100
+CP002,Cardiovascular Outcomes in Hypertensive Patients,III,"Long-term study of cardiovascular outcomes in patients with controlled hypertension",40,80,M;F,hypertension,heart_disease,,,,,,60,,lisinopril;amlodipine;losartan,,250
+CP003,Asthma Control with Biologic Therapy,II,"Phase II trial of a novel biologic agent for moderate-to-severe asthma",18,65,M;F,asthma,copd,,,,,,,,albuterol,,75
+CP004,Early Detection Biomarkers for Breast Cancer,I,"Observational study identifying early biomarkers in breast cancer survivors",30,70,F,breast_cancer,,,,,,,,,tamoxifen;letrozole,,50
+CP005,COPD Exacerbation Prevention Study,III,"Phase III trial evaluating a new triple-combination therapy for COPD",50,85,M;F,copd,,,,former;current,,,30,,spiriva;tiotropium,,150
+CP006,Pre-Diabetes Prevention Program,II,"Lifestyle intervention study for individuals at high risk of developing diabetes",30,65,M;F,,diabetes,27,35,,5.7,6.4,60,,,,200
+CP007,Heart Failure Management with Device Therapy,III,"Study of remote monitoring devices in heart failure patients",45,85,M;F,heart_disease;hypertension,,,,,,,50,,carvedilol;metoprolol,,100
+CP008,Kidney Disease Progression in Diabetics,II,"Observational study tracking kidney function decline in diabetic patients",40,75,M;F,diabetes;kidney_disease,,,,,6.0,9.0,30,60,metformin,,125
+CP009,Lung Cancer Immunotherapy Combination,II,"Phase II trial combining immunotherapy agents for non-small cell lung cancer",40,80,M;F,lung_cancer,,,,current,,,,,,carboplatin;paclitaxel,60
+CP010,Metabolic Syndrome Reversal Study,II,"Comprehensive lifestyle and medication intervention for metabolic syndrome",35,70,M;F,diabetes;hypertension,,28,40,,7.0,9.0,60,,metformin;atorvastatin,,175
+CP011,Post-Menopausal Osteoporosis Prevention,III,"Study of bone density preservation in post-menopausal women with cancer history",50,75,F,breast_cancer;ovarian_cancer,,,,,,,,,tamoxifen;letrozole,,80
+CP012,Healthy Volunteer Pharmacokinetics Study,I,"Phase I study evaluating drug metabolism in healthy volunteers",21,45,M;F,,,18,28,never,,,,,,,40
+CP013,Cholesterol Management with PCSK9 Inhibitor,III,"Phase III trial of PCSK9 inhibitor in patients with elevated LDL despite statin therapy",30,75,M;F,,,,,,,,,,atorvastatin,,200
+CP014,Chronic Kidney Disease Anemia Treatment,II,"Study of erythropoiesis-stimulating agents in CKD patients",45,80,M;F,kidney_disease,,,,,,,15,45,,,90
+CP015,Smoking Cessation with Novel Therapy,II,"Phase II trial of a new pharmacological approach to smoking cessation",25,70,M;F,,,,,current,,,,,,,150

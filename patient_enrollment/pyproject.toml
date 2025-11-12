@@ -1,0 +1,43 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "patient_enrollment"
+version = "0.1.0"
+description = "AI-Augmented Clinical Research Coordinator (Enrollment Agent): screens candidates using eligibility logic."
+requires-python = ">=3.12"
+dependencies = [
+    "agentex-sdk>=0.6.5",
+    "duckdb>=1.4.1",
+    "httpx>=0.27.2",
+    "openai>=2.7.2",
+    "openai-agents>=0.4.2",
+    "python-dotenv>=1.2.1",
+    "rapidfuzz>=3.14.3",
+    "scale-gp",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "black",
+    "isort",
+    "flake8",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["project"]
+
+[tool.black]
+line-length = 88
+target-version = ['py312']
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[dependency-groups]
+dev = [
+    "mypy>=1.18.2",
+]
