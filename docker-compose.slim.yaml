@@ -20,7 +20,7 @@ services:
 
   web-search:
     build:
-      context: ../
+      context: ${PWD}
       dockerfile: web_search/Dockerfile.slim
     environment:
       - PYTHONPATH=/app

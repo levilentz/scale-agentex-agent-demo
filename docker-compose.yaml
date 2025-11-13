@@ -261,6 +261,7 @@ services:
       - SGP_API_KEY=${SGP_API_KEY}
       - SGP_BASE_URL=${SGP_BASE_URL}
       - SGP_ACCOUNT_ID=${SGP_ACCOUNT_ID}
+      - GEMINI=true
     container_name: web-search
     depends_on:
       agentex:
