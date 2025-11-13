@@ -25,15 +25,15 @@ RUN uv pip install --system --upgrade pip setuptools wheel
 ENV UV_HTTP_TIMEOUT=1000
 
 # Copy just the pyproject.toml file to optimize caching
-COPY enrollment_demo/pyproject.toml /app/enrollment_demo/pyproject.toml
+COPY patient_enrollment/pyproject.toml /app/patient_enrollment/pyproject.toml
 
-WORKDIR /app/enrollment_demo
+WORKDIR /app/patient_enrollment
 
 # Install the required Python packages using uv
 RUN uv pip install --system .
 
 # Copy the project code
-COPY enrollment_demo/project /app/enrollment_demo/project
+COPY patient_enrollment/project /app/patient_enrollment/project
 
 # Set environment variables
 ENV PYTHONPATH=/app
