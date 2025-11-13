@@ -3,23 +3,30 @@
 # Enable verbose output and exit on error
 set -e
 
+# Parse command line arguments
+CONTAINER_RUNTIME="docker"
+if [[ "$1" == "--podman" ]]; then
+    CONTAINER_RUNTIME="podman"
+    echo "Using Podman instead of Docker"
+fi
+
 echo "========================================"
-echo "Starting Docker build process..."
+echo "Starting ${CONTAINER_RUNTIME} build process..."
 echo "Using Dockerfile.base to build image 'local-base:latest'"
 echo "========================================"
 
-# Run the Docker build command
-if docker build -f Dockerfile.base -t local-base:latest .; then
-    echo "✅ Docker image 'local-base:latest' built successfully."
+# Run the build command
+if ${CONTAINER_RUNTIME} build -f Dockerfile.base -t local-base:latest .; then
+    echo "✅ ${CONTAINER_RUNTIME} image 'local-base:latest' built successfully."
     echo "========================================"
-    echo "Starting Docker Compose process..."
+    echo "Starting ${CONTAINER_RUNTIME} Compose process..."
     echo "This will build and start all services defined in docker-compose.yml"
     echo "========================================"
 
-    # Run Docker Compose with build
-    #docker compose build
-    docker compose -f scale-agentex/docker-compose.yaml -f docker-compose.slim.yaml up --build
+    # Run Compose with build
+    #${CONTAINER_RUNTIME} compose build
+    ${CONTAINER_RUNTIME} compose -f scale-agentex/docker-compose.yaml -f docker-compose.slim.yaml up --build
 else
-    echo "❌ Docker build failed. Docker Compose will not be executed."
+    echo "❌ ${CONTAINER_RUNTIME} build failed. Compose will not be executed."
     exit 1
 fi

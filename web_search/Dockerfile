@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.3
 FROM python:3.12-slim
-COPY --from=ghcr.io/astral-sh/uv:0.6.4 /uv /uvx /bin/
+# COPY --from=ghcr.io/astral-sh/uv:0.6.4 /uv /uvx /bin/
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -17,8 +17,19 @@ RUN apt-get update && apt-get install -y \
     netcat-openbsd \
     nodejs \
     npm \ 
+    curl \ 
+    ca-certificates \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/**
+
+# Download the latest installer
+ADD https://astral.sh/uv/install.sh /uv-installer.sh
+
+# Run the installer then remove it
+RUN sh /uv-installer.sh && rm /uv-installer.sh
+
+# Ensure the installed binary is on the `PATH`
+ENV PATH="/root/.local/bin/:$PATH"
 
 RUN uv pip --native-tls --allow-insecure-host pypi.org --allow-insecure-host files.pythonhosted.org install --system --upgrade pip setuptools wheel
 
@@ -39,4 +50,4 @@ RUN uv pip --native-tls --allow-insecure-host pypi.org --allow-insecure-host fil
 ENV PYTHONPATH=/app
 
 # Run the agent using uvicorn
-CMD ["uvicorn", "project.acp:acp", "--host", "0.0.0.0", "--port", "8000"] 
+CMD ["bash", "run_agent.sh"] 

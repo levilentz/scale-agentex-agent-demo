@@ -14,7 +14,7 @@ from agentex.lib import adk
 from agents.tool import WebSearchTool as OAIWebSearchTool
 from agents import Tool, set_default_openai_client, set_default_openai_api
 
-from .openai_client import openai_client
+from .clients.openai_client import openai_client
 
 # Load environment variables from .env file
 load_dotenv()
@@ -177,6 +177,8 @@ async def handle_message_send(
 
         logger.info("✅ Response generated successfully")
         inputs = result.to_input_list()
+
+        state.input_list.append(result.to_input_list())
 
         # Parse and return all messages as TextContent objects
         return parse_messages_to_text_content(inputs)
