@@ -12,7 +12,7 @@ All of these components are dockerized. Once you bring them up you can browse to
 
 # Quick Start
 
-This quick start assumes that you have docker installed and are able to run run containers and build them. If you are not, please go to the sections for [Mac](#mac-setup-guide) or [Windows](#windows-setup-guide). 
+This quick start assumes that you have docker installed and are able to run run containers and build them. If you are not sure, please go to the sections for [Mac](#mac-setup-guide) or [Windows](#windows-setup-guide). 
 
 ## Initialize Submodule 
 
@@ -50,6 +50,12 @@ To bring this up on mac simply run
 bash run_agentex.sh
 ```
 
+This assumes that you have docker-compose available in your CLI. If instead you are using podman, simply run: 
+
+```bash
+bash run_agentex.sh --podman
+```
+
 ### Windows
 
 To bring this up on a Windows Machine simply run: 
@@ -58,14 +64,26 @@ To bring this up on a Windows Machine simply run:
 .\run_agentex.ps1
 ```
 
+Similarly, this assumes that you are using docker-compose to bring this up. If you are using podman, you can run: 
+
+```powershell
+.\run_agentex.ps1 -Podman
+```
+
 ## Build the full version
 
-To build the full version (I.E. without an intermdiate docker container), you can use the [docker-compose.yaml](docker-compose.yaml) file. This will not build and intermediate container and will take a long time to build. 
+To build the full version (I.E. without an intermdiate docker container), you can use the [docker-compose.yaml](docker-compose.yaml) file. This will not build and intermediate container and may take a long time to build. 
 
 Run the following from your terminal (same for windows or mac): 
 
 ```bash
 docker-compose up --build
+```
+
+or if using podman
+
+```bash
+podman compose up --build
 ```
 
 ## Trouble shooting
@@ -78,11 +96,17 @@ If you run into any trouble, the best course of action is to do the following:
 
 # Setup Guides
 
-Below are the setup guides to get docker running on a local system. Our preferred method is rancher as it does not have any licensing dependencies. 
+Below are the setup guides to get docker running on a local system. Our preferred method is rancher or podman as it does not have any licensing dependencies. 
 
 ## Mac Setup Guide
 
-### Use brew (preferred)
+### Podman
+
+Follow the guide at [podman.io](https://podman.io/docs/installation).
+
+### Rancher
+
+#### Use brew (preferred)
 
 Run the following: 
 
@@ -90,7 +114,7 @@ Run the following:
 brew install --cask rancher
 ```
 
-### Download from the web
+#### Download from the web
 
 For contractors, it may be possible to download and install from the web. Follow the instructions here: 
 
@@ -98,8 +122,12 @@ For contractors, it may be possible to download and install from the web. Follow
 
 ## Windows Setup Guide
 
-### Install docker
+### Podman
 
-We will also be using Rancher for Windows. You will need to install wsl and also rancher by following this guide: 
+Follow the guide at [podman.io](https://podman.io/docs/installation).
+
+### Rancher
+
+Rancher for Windows. You will need to install wsl and also rancher by following this guide: 
 
 [Windows Rancher Install Guide](https://docs.rancherdesktop.io/getting-started/installation/#windows)
