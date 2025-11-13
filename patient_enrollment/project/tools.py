@@ -1,13 +1,9 @@
 """Tools for clinical trial enrollment agent."""
 
-from typing import Callable
 from pathlib import Path
 
-from pydantic import BaseModel
 import duckdb
 
-from agents import function_tool
-from agents.tool import FunctionTool
 from functools import lru_cache
 
 
@@ -29,31 +25,17 @@ def get_db_conn() -> duckdb.DuckDBPyConnection:
     return db
 
 
-class ToolWrapper(BaseModel):
-    """Decorator that makes functions JSON-serializable with to_oai_function_tool method."""
 
-    tool_name: str = ""
-    tool_description: str = ""
-    _func: Callable | None = None
+LIST_ALL_PROGRAMS_TOOL_DEF = {
+    "name": "list_all_programs",
+    "description": "List all available clinical programs.",
+    "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+    },
+}
 
-    class Config:
-        arbitrary_types_allowed = True
-        fields = {"_func": {"exclude": True}}
-
-    def __call__(self, func: Callable) -> "ToolWrapper":
-        object.__setattr__(self, "_func", func)
-        self.tool_name = func.__name__
-        self.tool_description = (func.__doc__ or "").strip()
-        return self
-
-    def to_oai_function_tool(self) -> FunctionTool:
-        if not self._func:
-            raise ValueError("No function assigned to ToolWrapper")
-        return function_tool(self._func)
-
-
-# Tool functions
-@ToolWrapper()
 def list_all_programs() -> dict:
     """List all available clinical programs."""
     programs = (
@@ -77,8 +59,21 @@ def list_all_programs() -> dict:
         ],
     }
 
+FIND_PROGRAM_BY_NAME_TOOL_DEF = {
+    "name": "find_program_by_name",
+    "description": "Find a clinical program by its name using SQL LIKE matching.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "program_name": {
+                "type": "string",
+                "description": "The name (or part of the name) of the clinical program to find.",
+            },
+        },
+        "required": ["program_name"],
+    },
+}
 
-@ToolWrapper()
 def find_program_by_name(program_name: str) -> dict:
     """Find clinical program by name using SQL LIKE matching."""
     result = (
@@ -100,8 +95,22 @@ def find_program_by_name(program_name: str) -> dict:
         "description": str(result[3]),
     }
 
+FIND_CANDIDATES_FOR_PROGRAM_TOOL_DEF = {
+    "name": "find_candidates_for_program",
+    "description": "Find eligible candidates for a clinical program based on its criteria.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "program_id": {
+                "type": "string",
+                "description": "The ID of the clinical program to find candidates for (e.g., CP001).",
+            },
+        },
+        "required": ["program_id"],
+    },
+}
 
-@ToolWrapper()
+
 def find_candidates_for_program(program_id: str) -> dict:
     """Find eligible candidates for a clinical program using SQL."""
 

@@ -11,6 +11,7 @@ dependencies = [
     "agentex-sdk>=0.6.5",
     "duckdb>=1.4.1",
     "httpx>=0.27.2",
+    "mcp>=1.21.0",
     "openai>=2.7.2",
     "openai-agents>=0.4.2",
     "python-dotenv>=1.2.1",
@@ -36,8 +37,3 @@ target-version = ['py312']
 [tool.isort]
 profile = "black"
 line_length = 88
-
-[dependency-groups]
-dev = [
-    "mypy>=1.18.2",
-]

@@ -1,20 +1,26 @@
-from typing import AsyncGenerator
+import json
+import os
+from typing import Any, AsyncGenerator, Callable
 
-from pydantic import BaseModel
-
+from agentex.lib import adk
 from agentex.lib.sdk.fastacp.fastacp import FastACP
 from agentex.lib.types.acp import SendMessageParams
-from agentex.types.task_message_update import TaskMessageUpdate
-from agentex.types.task_message_content import TaskMessageContent
-from agentex.types.text_content import TextContent
 from agentex.lib.utils.logging import make_logger
-from agentex.lib import adk
-from agents import set_default_openai_client
-
-from .tools import list_all_programs, find_program_by_name, find_candidates_for_program
-
-from openai import AsyncOpenAI
+from agentex.types.task_message_content import TaskMessageContent
+from agentex.types.task_message_update import TaskMessageUpdate
+from agentex.types.text_content import TextContent
 from dotenv import load_dotenv
+from pydantic import BaseModel
+from scale_gp import AsyncSGPClient
+
+from .tools import (
+    FIND_CANDIDATES_FOR_PROGRAM_TOOL_DEF,
+    FIND_PROGRAM_BY_NAME_TOOL_DEF,
+    LIST_ALL_PROGRAMS_TOOL_DEF,
+    find_candidates_for_program,
+    find_program_by_name,
+    list_all_programs,
+)
 
 AGENT_NAME = "Clinical Trial Enrollment Agent"
 
@@ -32,36 +38,24 @@ If a user asks about eligibility criteria, you can use the find_program_by_name 
 """
 
 AGENT_TOOLS = [
-    list_all_programs,
-    find_program_by_name,
-    find_candidates_for_program,
+    (list_all_programs, LIST_ALL_PROGRAMS_TOOL_DEF),
+    (find_program_by_name, FIND_PROGRAM_BY_NAME_TOOL_DEF),
+    (find_candidates_for_program, FIND_CANDIDATES_FOR_PROGRAM_TOOL_DEF),
 ]
 
-AGENT_MODEL = "openai/gpt-4o-mini"
+MODEL = "gemini/gemini-2.5-flash"
 
-# TODO: How does Auth with SGP work?
-# import os
-# import httpx
-# SGP_API_KEY = os.getenv("SGP_API_KEY")
-# SGP_BASE_URL = os.getenv("SGP_BASE_URL")
-# SGP_ACCOUNT_ID = os.getenv("SGP_ACCOUNT_ID")
-# http_client = httpx.AsyncClient(verify=False)
-# openai_client = AsyncOpenAI(
-#     base_url=SGP_BASE_URL,
-#     api_key="",
-#     default_headers={
-#         "x-api-key": SGP_API_KEY,
-#         "x-selected-account-id": SGP_ACCOUNT_ID
-#     },
-#     http_client=http_client,
-# )
 
 # Load .env file
 load_dotenv()
 
-# Use my OpenAI creds b/c I can't figure out auth
-openai_client = AsyncOpenAI()
-set_default_openai_client(openai_client)
+# Initialize SGP client
+async_sgp_client = AsyncSGPClient(
+    base_url=os.getenv("SGP_BASE_URL"),
+    account_id=os.getenv("SGP_ACCOUNT_ID"),
+    api_key=os.getenv("SGP_API_KEY"),
+)
+async_sgp_client.beta.chat.completions.create
 
 logger = make_logger(__name__)
 
@@ -74,33 +68,117 @@ class StateModel(BaseModel):
     turn_number: int
 
 
-def parse_messages_to_text_content(input_list: list[dict]) -> list[TextContent]:
+async def run_gemini_with_tools(
+    messages: list[dict],
+    agent_instructions: str = AGENT_INSTRUCTIONS,
+    model: str = MODEL,
+    tools: list[tuple[Callable, dict[str, Any]]] | None = None,
+    temperature: float = 0.7,
+    max_tokens: int = 1000,
+) -> str:
     """
-    Parse the input list into TextContent objects.
+    Run Gemini with clinical trial tools via SGP client.
 
-    Handles:
-    - User messages: {'role': 'user', 'content': 'text'}
-    - Assistant messages: {'role': 'assistant', 'content': [{'text': '...'}]}
-    - Skips reasoning objects and other non-message types
+    Args:
+        messages: List of message dicts with role and content
+        agent_name: Name of the agent
+        agent_instructions: System instructions for the agent
+        model: Model name to use
+        tools: List of (function, tool_dict) tuples, defaults to AGENT_TOOLS
+        temperature: Model temperature
+        max_tokens: Maximum tokens in response
+
+    Returns:
+        The assistant's response text
     """
-    text_messages = []
-    for item in input_list:
-        if not isinstance(item, dict) or "role" not in item or "content" not in item:
-            continue
-        if item["role"] == "user" and item["content"]:
-            text_messages.append(TextContent(author="user", content=item["content"]))
-        elif (
-            item["role"] == "assistant"
-            and item["content"]
-            and isinstance(item["content"], list)
-        ):
-            for content_item in item["content"]:
-                if not isinstance(content_item, dict) or "text" not in content_item:
-                    continue
-                text_messages.append(
-                    TextContent(author="agent", content=content_item["text"])
-                )
-    return text_messages
+    if tools is None:
+        tools = AGENT_TOOLS
+
+    # Create tool map for executing functions
+    tool_map = {func.__name__: func for func, _ in tools}
+
+    # Extract just the tool dicts for the API
+    tool_defs = [tool_dict for _, tool_dict in tools]
+
+    # Prepend system message with instructions
+    conversation = [{"role": "system", "content": agent_instructions}] + messages
+
+    logger.info(f"Sending request to {model} with {len(tool_defs)} tools")
+
+    # First request - model decides if it needs to use tools
+    response = await async_sgp_client.beta.chat.completions.create(
+        model=model,
+        messages=conversation,
+        tools=tool_defs,
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
+
+    logger.info(f"SGP Response: {response}")
+
+    message = response.choices[0].message
+
+    # Check if model wants to use tools
+    if hasattr(message, 'tool_calls') and message.tool_calls:
+        logger.info(f"Model requested {len(message.tool_calls)} tool call(s)")
+
+        # Append assistant message with tool calls to conversation
+        conversation.append({
+            "role": "assistant",
+            "content": message.content or "",
+            "tool_calls": [
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments
+                    }
+                }
+                for tc in message.tool_calls
+            ]
+        })
+
+        # Execute each tool call
+        for tool_call in message.tool_calls:
+            tool_name = tool_call.function.name
+            args = json.loads(tool_call.function.arguments)
+
+            logger.info(f"Executing tool: {tool_name} with args: {args}")
+
+            # Execute the actual function
+            result = tool_map[tool_name](**args)
+
+            logger.info(f"Tool result: {result}")
+
+            # Append tool result to conversation
+            conversation.append({
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "content": json.dumps(result)
+            })
+
+        logger.info("Generating final answer with tool results...")
+
+        # Get final response with tool results
+        final_response = await async_sgp_client.beta.chat.completions.create(
+            model=model,
+            messages=conversation,
+            tools=tool_defs,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+
+        logger.info(f"Final response: {final_response}")
+
+        response_text = final_response.choices[0].message.content
+    else:
+        logger.info("Model didn't request tool use")
+        response_text = message.content
+
+    return response_text
+
+
 
 
 @acp.on_message_send
@@ -121,10 +199,9 @@ async def handle_message_send(
     ):
         return TextContent(author="agent", content="Please provide a message.")
     message_text = params.content.content
-    logger.info(f"📨 Received message: {message_text}")
+    logger.info(f"Received message: {message_text}")
 
     # Get or create task state
-    task = await adk.tasks.get(task_id=params.task.id)
     task_state = await adk.state.get_by_task_and_agent(
         task_id=params.task.id, agent_id=params.agent.id
     )
@@ -139,30 +216,24 @@ async def handle_message_send(
 
     # Increment turn number
     state.turn_number += 1
-    state_len = len(state.input_list)
 
     # Add user message to history
     state.input_list.append({"role": "user", "content": message_text})
 
     try:
-        result = await adk.providers.openai.run_agent_auto_send(
-            task_id=task.id,
-            trace_id=task.id,
-            input_list=state.input_list,
-            agent_name=AGENT_NAME,
-            agent_instructions=AGENT_INSTRUCTIONS,
-            model=AGENT_MODEL,
-            tools=AGENT_TOOLS,
+        response_text = await run_gemini_with_tools(
+            messages=state.input_list,
         )
     except Exception as e:
         logger.exception(f"❌ Error handling message: {str(e)}")
         return TextContent(
             author="agent", content=f"Sorry, I encountered an error: {str(e)}"
         )
-    logger.info("✅ Response generated successfully")
+    logger.info("Response generated successfully")
 
-    new_messages = result.to_input_list()[state_len + 1 :]
-    state.input_list.extend(new_messages)
+    # Add assistant response to history
+    state.input_list.append({"role": "assistant", "content": response_text})
+
     await adk.state.update(
         state_id=task_state.id,
         task_id=params.task.id,
@@ -170,4 +241,4 @@ async def handle_message_send(
         state=state,
     )
 
-    return parse_messages_to_text_content(new_messages)
+    return TextContent(author="agent", content=response_text)
