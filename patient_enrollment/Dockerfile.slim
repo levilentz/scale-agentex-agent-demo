@@ -1,0 +1,22 @@
+FROM local-base:latest
+
+RUN uv pip --native-tls --allow-insecure-host pypi.org --allow-insecure-host files.pythonhosted.org install --system --upgrade pip setuptools wheel
+
+ENV UV_HTTP_TIMEOUT=1000
+
+# Copy just the pyproject.toml file to optimize caching
+COPY patient_enrollment/pyproject.toml /app/patient_enrollment/pyproject.toml
+
+WORKDIR /app/patient_enrollment
+
+# Install the required Python packages using uv
+RUN uv pip --native-tls --allow-insecure-host pypi.org --allow-insecure-host files.pythonhosted.org install --system .
+
+# Copy the project code
+COPY patient_enrollment/project /app/patient_enrollment/project
+
+# Set environment variables
+ENV PYTHONPATH=/app
+
+# Run the agent using uvicorn
+CMD ["uvicorn", "project.acp:acp", "--host", "0.0.0.0", "--port", "8000"] 
