@@ -26,6 +26,7 @@ ENV UV_HTTP_TIMEOUT=1000
 
 # Copy just the pyproject.toml file to optimize caching
 COPY patient_enrollment/pyproject.toml /app/patient_enrollment/pyproject.toml
+COPY patient_enrollment/data /app/patient_enrollment/data
 
 WORKDIR /app/patient_enrollment
 

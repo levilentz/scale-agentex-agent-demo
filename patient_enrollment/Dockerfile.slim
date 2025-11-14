@@ -14,6 +14,7 @@ RUN uv pip --native-tls --allow-insecure-host pypi.org --allow-insecure-host fil
 
 # Copy the project code
 COPY patient_enrollment/project /app/patient_enrollment/project
+COPY patient_enrollment/data /app/patient_enrollment/data
 
 # Set environment variables
 ENV PYTHONPATH=/app
