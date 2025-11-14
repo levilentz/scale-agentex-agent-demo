@@ -1,4 +1,5 @@
 import os
+import json
 from typing import AsyncGenerator, List, Optional, Any, Literal
 
 from dotenv import load_dotenv
@@ -11,10 +12,8 @@ from agentex.types.task_message_content import TaskMessageContent
 from agentex.types.text_content import TextContent
 from agentex.lib.utils.logging import make_logger
 from agentex.lib import adk
-from agents.tool import WebSearchTool as OAIWebSearchTool
-from agents import Tool, set_default_openai_client, set_default_openai_api
 
-from .clients.openai_client import openai_client
+from .clients.sgp_client import async_sgp_client
 
 # Load environment variables from .env file
 load_dotenv()
@@ -26,31 +25,181 @@ acp = FastACP.create(
     acp_type="sync",
 )
 
-set_default_openai_client(openai_client)
-# set_default_openai_api("chat_completions")
+MODEL = "gemini/gemini-2.5-flash"
+
 
 class StateModel(BaseModel):
     input_list: List[dict]
     turn_number: int
 
 
-class WebSearchTool(BaseModel):
-    user_location: Optional[dict[str, Any]] = None  # UserLocation object
-    search_context_size: Optional[Literal["low", "medium", "high"]] = "medium"
+# ============================================================================
+# Web Search Implementation with DuckDuckGo
+# ============================================================================
 
-    def to_oai_function_tool(self) -> OAIWebSearchTool:
-        kwargs = {}
-        if self.user_location is not None:
-            kwargs["user_location"] = self.user_location
-        if self.search_context_size is not None:
-            kwargs["search_context_size"] = self.search_context_size
-        return OAIWebSearchTool(**kwargs)
+async def search_web_duckduckgo(query: str, max_results: int = 5):
+    """
+    Perform web search using DuckDuckGo (free, no API key needed)
+
+    Args:
+        query: Search query
+        max_results: Maximum number of results to return
+
+    Returns:
+        List of search results with title, link, and snippet
+    """
+    try:
+        from ddgs import DDGS
+
+        results = []
+        ddgs = DDGS()
+
+        # Use the text search method
+        search_results = ddgs.text(query, max_results=max_results)
+
+        for r in search_results:
+            results.append({
+                "title": r.get("title", ""),
+                "link": r.get("href", r.get("link", "")),
+                "snippet": r.get("body", r.get("snippet", ""))
+            })
+
+        return results if results else [{"info": "No results found"}]
+
+    except ImportError:
+        logger.error("ddgs package not installed")
+        return [{
+            "error": "ddgs not installed. Install with: uv pip install ddgs"
+        }]
+    except Exception as e:
+        logger.error(f"Web search error: {str(e)}")
+        import traceback
+        return [{"error": str(e), "traceback": traceback.format_exc()}]
 
 
-WEB_SEARCH_TOOL = WebSearchTool(
-    user_location={"type": "approximate", "city": "Seattle", "country": "US"},
-    search_context_size="medium",
-)
+async def run_gemini_with_web_search(
+    messages: List[dict],
+    max_search_results: int = 5,
+    temperature: float = 0.7,
+    max_tokens: int = 1000,
+) -> str:
+    """
+    Run Gemini with web search tool via SGP client.
+
+    Args:
+        messages: List of message dicts with role and content
+        max_search_results: Maximum number of search results per query
+        temperature: Model temperature
+        max_tokens: Maximum tokens in response
+
+    Returns:
+        The assistant's response text
+    """
+
+    # Define custom web search tool
+    tool_def = {
+        "type": "function",
+        "function": {
+            "name": "web_search",
+            "description": "Search the web for current, up-to-date information on any topic",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The search query to look up"
+                    }
+                },
+                "required": ["query"]
+            }
+        }
+    }
+
+    tools = [tool_def]
+
+    logger.info(f"📤 Sending request to Gemini with web search tool")
+
+    # First request - model decides if it needs to search
+    response = await async_sgp_client.beta.chat.completions.create(
+        model=MODEL,
+        messages=messages,
+        tools=tools,
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
+
+    logger.info(f"🤖 Response: {response}")
+
+    message = response.choices[0].message
+
+    # Check if model wants to use the tool
+    if hasattr(message, 'tool_calls') and message.tool_calls:
+        logger.info(f"🔧 Model requested {len(message.tool_calls)} tool call(s)")
+
+        # Build conversation with tool responses
+        conversation = messages.copy()
+        conversation.append({
+            "role": "assistant",
+            "content": message.content or "",
+            "tool_calls": [
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments
+                    }
+                }
+                for tc in message.tool_calls
+            ]
+        })
+
+        # Execute tool calls
+        for tool_call in message.tool_calls:
+            args = json.loads(tool_call.function.arguments)
+            search_query = args.get('query', '')
+
+            logger.info(f"🔍 Searching: '{search_query}'")
+
+            # Execute the actual web search!
+            search_results = await search_web_duckduckgo(search_query, max_results=max_search_results)
+
+            logger.info(f"✅ Found {len(search_results)} results")
+
+            # Format results for the model
+            tool_result = {
+                "query": search_query,
+                "results": search_results
+            }
+            logger.info(f"🔍 Tool result: {tool_result}")
+
+            conversation.append({
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "content": json.dumps(tool_result)
+            })
+
+        logger.info(f"🤖 Conversation: {conversation}")
+        # Get final response with tool results
+        logger.info(f"🤖 Generating final answer with search results...")
+
+        final_response = await async_sgp_client.beta.chat.completions.create(
+            model=MODEL,
+            messages=conversation,
+            tools=tools,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+
+        logger.info(f"🤖 Final response: {final_response}")
+
+        response_text = final_response.choices[0].message.content
+    else:
+        logger.info("💭 Model didn't request tool use")
+        response_text = message.content
+
+    
+    return response_text
 
 
 def parse_messages_to_text_content(input_list: list[dict]) -> list[TextContent]:
@@ -87,10 +236,13 @@ def parse_messages_to_text_content(input_list: list[dict]) -> list[TextContent]:
                 text_messages.append(TextContent(author="user", content=content))
 
         elif role == "assistant":
-            # Assistant message: content is a list with text objects
-            content_list = item.get("content", [])
-            if isinstance(content_list, list):
-                for content_item in content_list:
+            # Assistant message: content could be a string or list
+            content = item.get("content", "")
+            if isinstance(content, str):
+                if content:
+                    text_messages.append(TextContent(author="agent", content=content))
+            elif isinstance(content, list):
+                for content_item in content:
                     if isinstance(content_item, dict):
                         text = content_item.get("text", "")
                         if text:
@@ -110,9 +262,9 @@ async def handle_message_send(
     | AsyncGenerator[TaskMessageUpdate, None]
 ):
     """
-    Handle incoming messages with web search via OpenAI MCP server.
+    Handle incoming messages with web search via custom Gemini implementation.
 
-    This uses the openai-websearch-mcp server to perform web searches.
+    This uses the SGP client directly with custom web search tool.
     """
 
     # Extract message text
@@ -134,6 +286,7 @@ async def handle_message_send(
     task_state = await adk.state.get_by_task_and_agent(
         task_id=params.task.id, agent_id=params.agent.id
     )
+    
     if not task_state:
         # If the state doesn't exist, create it.
         state = StateModel(input_list=[], turn_number=0)
@@ -146,46 +299,37 @@ async def handle_message_send(
     # Increment turn number
     state.turn_number += 1
 
-    # Decode and add the new user message to the message history
-    user_prompt = message_text
-    state.input_list.append({"role": "user", "content": user_prompt})
+    # Add the new user message to the message history
+    state.input_list.append({"role": "user", "content": message_text})
 
     try:
-        agent_name = "Web Search Agent"
-        agent_instructions = """
-            You are a helpful agent that answers questions about a range of topics. Your strength is that you can search the web.
-            You have access to the following tools:
-           - web_search: Search the internet for answers to the questions 
-
-            When using web search, always cite your sources with links. Use web search to:
-            - Find up-to-date information on topics 
-            
-            Always be professional, empathetic, and ensure that your answers are accurate and well-cited.
-        """
-        # Setup agent with tools
-        tools: List[Tool] = [WEB_SEARCH_TOOL]
-
-        result = await adk.providers.openai.run_agent_auto_send(
-            task_id=task.id,
-            trace_id=task.id,
-            input_list=state.input_list,
-            agent_name=agent_name,
-            agent_instructions=agent_instructions,
-            model="openai/openai/gpt-5-mini",
-            tools=tools,
+        # Run Gemini with web search capability
+        response_text = await run_gemini_with_web_search(
+            messages=state.input_list,
+            max_search_results=5,  # Control number of search results here!
+            temperature=0.7,
+            max_tokens=1000,
         )
 
+        if response_text is None: 
+            response_text = "Sorry, I encountered when searching the web. Please try again."
+
+        # Add assistant response to state
+        state.input_list.append({"role": "assistant", "content": response_text})
+
         logger.info("✅ Response generated successfully")
-        inputs = result.to_input_list()
-
-        state.input_list.append(result.to_input_list())
-
-        # Parse and return all messages as TextContent objects
-        return parse_messages_to_text_content(inputs)
+        # Return the response as TextContent
+        return TextContent(
+            author="agent",
+            content=response_text,
+        )
 
     except Exception as e:
         logger.error(f"❌ Error handling message: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+
         return TextContent(
             author="agent",
-            content=f"Sorry, I encountered an error: {str(e)}\n\nPlease make sure:\n1. Your OPENAI_API_KEY is set in .env\n2. The openai-websearch-mcp package is available (it will be installed automatically via uvx)",
+            content=f"Sorry, I encountered an error: {str(e)}\n\nPlease make sure:\n1. The SGP credentials are properly configured\n2. The ddgs package is installed (uv pip install ddgs)",
         )
