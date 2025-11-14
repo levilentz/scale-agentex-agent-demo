@@ -116,15 +116,6 @@ async def run_gemini_with_web_search(
     tools = [tool_def]
 
     logger.info("📤 Sending request to Gemini with web search tool")
-
-    # First request - model decides if it needs to search
-    adk.providers.litellm.chat_completion(
-        model=MODEL,
-        messages=messages,
-        tools=tools,
-        temperature=temperature,
-        max_tokens=max_tokens,
-    )
     
     response = await async_sgp_client.beta.chat.completions.create(
         model=MODEL,
