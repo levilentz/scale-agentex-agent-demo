@@ -2,7 +2,7 @@ import os
 import json
 from typing import AsyncGenerator, List, Optional, Any, Literal
 
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 from pydantic import BaseModel
 
 from agentex.lib.sdk.fastacp.fastacp import FastACP
@@ -15,8 +15,8 @@ from agentex.lib import adk
 
 from .clients.sgp_client import async_sgp_client
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from .env file local or parent directories
+load_dotenv(find_dotenv())
 
 logger = make_logger(__name__)
 

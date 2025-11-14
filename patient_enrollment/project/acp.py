@@ -9,7 +9,7 @@ from agentex.lib.utils.logging import make_logger
 from agentex.types.task_message_content import TaskMessageContent
 from agentex.types.task_message_update import TaskMessageUpdate
 from agentex.types.text_content import TextContent
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 from pydantic import BaseModel
 from scale_gp import AsyncSGPClient
 
@@ -55,8 +55,8 @@ AGENT_TOOLS = [
 MODEL = "gemini/gemini-2.5-flash"
 
 
-# Load .env file
-load_dotenv()
+# Load environment variables from .env file local or parent directories
+load_dotenv(find_dotenv())
 
 # Initialize SGP client
 async_sgp_client = AsyncSGPClient(
