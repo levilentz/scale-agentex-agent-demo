@@ -59,7 +59,11 @@ MODEL = "gemini/gemini-2.5-flash"
 # Load environment variables from .env file local or parent directories
 load_dotenv(find_dotenv())
 
-if not os.getenv("SGP_BASE_URL") or not os.getenv("SGP_ACCOUNT_ID") or not os.getenv("SGP_API_KEY"):
+if (
+    not os.getenv("SGP_BASE_URL")
+    or not os.getenv("SGP_ACCOUNT_ID")
+    or not os.getenv("SGP_API_KEY")
+):
     raise EnvironmentError(
         "SGP_BASE_URL, SGP_ACCOUNT_ID, and SGP_API_KEY must be set in environment variables."
     )
@@ -131,25 +135,27 @@ async def run_gemini_with_tools(
     message = response.choices[0].message
 
     # Loop until we get a response without tool calls
-    while hasattr(message, 'tool_calls') and message.tool_calls:
+    while hasattr(message, "tool_calls") and message.tool_calls:
         logger.info(f"Model requested {len(message.tool_calls)} tool call(s)")
 
         # Append assistant message with tool calls to conversation
-        conversation.append({
-            "role": "assistant",
-            "content": message.content or "",
-            "tool_calls": [
-                {
-                    "id": tc.id,
-                    "type": "function",
-                    "function": {
-                        "name": tc.function.name,
-                        "arguments": tc.function.arguments
+        conversation.append(
+            {
+                "role": "assistant",
+                "content": message.content or "",
+                "tool_calls": [
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.function.name,
+                            "arguments": tc.function.arguments,
+                        },
                     }
-                }
-                for tc in message.tool_calls
-            ]
-        })
+                    for tc in message.tool_calls
+                ],
+            }
+        )
 
         # Execute each tool call
         for tool_call in message.tool_calls:
@@ -164,11 +170,13 @@ async def run_gemini_with_tools(
             logger.info(f"Tool result: {result}")
 
             # Append tool result to conversation
-            conversation.append({
-                "role": "tool",
-                "tool_call_id": tool_call.id,
-                "content": json.dumps(result)
-            })
+            conversation.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": json.dumps(result),
+                }
+            )
 
         logger.info("Requesting next response with tool results...")
 
@@ -186,8 +194,6 @@ async def run_gemini_with_tools(
 
     logger.info("Model returned final answer without tool calls")
     return message.content
-
-
 
 
 @acp.on_message_send
@@ -234,7 +240,7 @@ async def handle_message_send(
             messages=state.input_list,
         )
     except Exception as e:
-        logger.exception(f"❌ Error handling message: {str(e)}")
+        logger.exception(f"Error handling message: {str(e)}")
         return TextContent(
             author="agent", content=f"Sorry, I encountered an error: {str(e)}"
         )
