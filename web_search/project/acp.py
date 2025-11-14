@@ -1,6 +1,5 @@
 import json
-import os
-from typing import Any, AsyncGenerator, List, Literal, Optional
+from typing import AsyncGenerator, List
 
 from agentex.lib import adk
 from agentex.lib.sdk.fastacp.fastacp import FastACP
@@ -116,7 +115,7 @@ async def run_gemini_with_web_search(
 
     tools = [tool_def]
 
-    logger.info(f"📤 Sending request to Gemini with web search tool")
+    logger.info("📤 Sending request to Gemini with web search tool")
 
     # First request - model decides if it needs to search
     adk.providers.litellm.chat_completion(
@@ -188,7 +187,7 @@ async def run_gemini_with_web_search(
 
         logger.info(f"🤖 Conversation: {conversation}")
         # Get final response with tool results
-        logger.info(f"🤖 Generating final answer with search results...")
+        logger.info("🤖 Generating final answer with search results...")
 
         final_response = await async_sgp_client.beta.chat.completions.create(
             model=MODEL,
