@@ -25,7 +25,7 @@ if ${CONTAINER_RUNTIME} build -f Dockerfile.base -t local-base:latest .; then
 
     # Run Compose with build
     #${CONTAINER_RUNTIME} compose build
-    ${CONTAINER_RUNTIME} compose -f scale-agentex/docker-compose.yaml -f docker-compose.slim.yaml up --build
+    ${CONTAINER_RUNTIME} compose --env-file .env -f scale-agentex/docker-compose.yaml -f docker-compose.slim.yaml up --build
 else
     echo "❌ ${CONTAINER_RUNTIME} build failed. Compose will not be executed."
     exit 1

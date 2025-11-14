@@ -24,7 +24,7 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "This will build and start all services defined in docker-compose.yml"
     Write-Host "========================================"
 
-    & $ContainerRuntime compose -f scale-agentex/docker-compose.yaml -f docker-compose.slim.yaml up --build
+    & $ContainerRuntime compose --env-file .env -f scale-agentex/docker-compose.yaml -f docker-compose.slim.yaml up --build
 } else {
     Write-Host "❌ $ContainerRuntime build failed. Compose will not be executed."
     exit 1
