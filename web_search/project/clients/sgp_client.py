@@ -7,7 +7,7 @@ SGP_API_KEY = os.getenv("SGP_API_KEY")
 SGP_BASE_URL = os.getenv("SGP_BASE_URL")
 SGP_ACCOUNT_ID = os.getenv("SGP_ACCOUNT_ID")
 
-if not SGP_CLIENT_BASE_URL or not SGP_ACCOUNT_ID or not SGP_API_KEY:
+if not SGP_BASE_URL or not SGP_ACCOUNT_ID or not SGP_API_KEY:
     raise EnvironmentError(
         "SGP_BASE_URL, SGP_ACCOUNT_ID, and SGP_API_KEY must be set in environment variables."
     )
