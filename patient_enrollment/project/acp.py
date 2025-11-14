@@ -15,10 +15,14 @@ from scale_gp import AsyncSGPClient
 
 from .tools import (
     FIND_CANDIDATES_FOR_PROGRAM_TOOL_DEF,
+    FIND_PERSON_BY_NAME_TOOL_DEF,
     FIND_PROGRAM_BY_NAME_TOOL_DEF,
+    FIND_PROGRAMS_FOR_CANDIDATE_TOOL_DEF,
     LIST_ALL_PROGRAMS_TOOL_DEF,
     find_candidates_for_program,
+    find_person_by_name,
     find_program_by_name,
+    find_programs_for_candidate,
     list_all_programs,
 )
 
@@ -31,16 +35,21 @@ You help users find clinical programs and match eligible candidates to trials.
 You have access to the following tools:
 - list_all_programs: List all available clinical research programs
 - find_program_by_name: Find a specific program by searching for its name
+- find_person_by_name: Find a person/candidate by searching for their name
 - find_candidates_for_program: Find all eligible candidates for a specific program (requires program_id like CP001)
+- find_programs_for_candidate: Find all eligible programs for a specific candidate (requires person_id like P001)
 
-Always be professional and helpful. When presenting candidates, show their key demographic information.
+Always be professional and helpful. When presenting candidates or programs, show their key information.
+If a user asks about a person by name, use find_person_by_name first to get their person_id, then you can use find_programs_for_candidate.
 If a user asks about eligibility criteria, you can use the find_program_by_name tool to get program details first.
 """
 
 AGENT_TOOLS = [
     (list_all_programs, LIST_ALL_PROGRAMS_TOOL_DEF),
     (find_program_by_name, FIND_PROGRAM_BY_NAME_TOOL_DEF),
+    (find_person_by_name, FIND_PERSON_BY_NAME_TOOL_DEF),
     (find_candidates_for_program, FIND_CANDIDATES_FOR_PROGRAM_TOOL_DEF),
+    (find_programs_for_candidate, FIND_PROGRAMS_FOR_CANDIDATE_TOOL_DEF),
 ]
 
 MODEL = "gemini/gemini-2.5-flash"
@@ -118,8 +127,8 @@ async def run_gemini_with_tools(
 
     message = response.choices[0].message
 
-    # Check if model wants to use tools
-    if hasattr(message, 'tool_calls') and message.tool_calls:
+    # Loop until we get a response without tool calls
+    while hasattr(message, 'tool_calls') and message.tool_calls:
         logger.info(f"Model requested {len(message.tool_calls)} tool call(s)")
 
         # Append assistant message with tool calls to conversation
@@ -158,10 +167,10 @@ async def run_gemini_with_tools(
                 "content": json.dumps(result)
             })
 
-        logger.info("Generating final answer with tool results...")
+        logger.info("Requesting next response with tool results...")
 
-        # Get final response with tool results
-        final_response = await async_sgp_client.beta.chat.completions.create(
+        # Get next response with tool results
+        response = await async_sgp_client.beta.chat.completions.create(
             model=model,
             messages=conversation,
             tools=tool_defs,
@@ -169,14 +178,11 @@ async def run_gemini_with_tools(
             max_tokens=max_tokens,
         )
 
-        logger.info(f"Final response: {final_response}")
+        logger.info(f"Response: {response}")
+        message = response.choices[0].message
 
-        response_text = final_response.choices[0].message.content
-    else:
-        logger.info("Model didn't request tool use")
-        response_text = message.content
-
-    return response_text
+    logger.info("Model returned final answer without tool calls")
+    return message.content
 
 
 
@@ -241,4 +247,5 @@ async def handle_message_send(
         state=state,
     )
 
+    print("YOLO: ", response_text)
     return TextContent(author="agent", content=response_text)
