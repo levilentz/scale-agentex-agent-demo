@@ -5,16 +5,13 @@ build-backend = "hatchling.build"
 [project]
 name = "web_search"
 version = "0.1.0"
-description = "An AgentEx agent"
+description = "An AgentEx agent for web searching"
 requires-python = ">=3.12"
 readme = "README.md"
 dependencies = [
-    "agentex-sdk<0.6.0",
+    "agentex-sdk>=0.6.5",
     "scale-gp",
-    "openai>=1.0.0",
-    "mcp>=1.0.0",
     "python-dotenv>=1.0.0",
-    "google-generativeai>=0.8.0",
     "ddgs>=1.0.0"
 ]
 

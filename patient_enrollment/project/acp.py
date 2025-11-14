@@ -9,16 +9,20 @@ from agentex.lib.utils.logging import make_logger
 from agentex.types.task_message_content import TaskMessageContent
 from agentex.types.task_message_update import TaskMessageUpdate
 from agentex.types.text_content import TextContent
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 from pydantic import BaseModel
 from scale_gp import AsyncSGPClient
 
 from .tools import (
     FIND_CANDIDATES_FOR_PROGRAM_TOOL_DEF,
+    FIND_PERSON_BY_NAME_TOOL_DEF,
     FIND_PROGRAM_BY_NAME_TOOL_DEF,
+    FIND_PROGRAMS_FOR_CANDIDATE_TOOL_DEF,
     LIST_ALL_PROGRAMS_TOOL_DEF,
     find_candidates_for_program,
+    find_person_by_name,
     find_program_by_name,
+    find_programs_for_candidate,
     list_all_programs,
 )
 
@@ -31,23 +35,38 @@ You help users find clinical programs and match eligible candidates to trials.
 You have access to the following tools:
 - list_all_programs: List all available clinical research programs
 - find_program_by_name: Find a specific program by searching for its name
+- find_person_by_name: Find a person/candidate by searching for their name
 - find_candidates_for_program: Find all eligible candidates for a specific program (requires program_id like CP001)
+- find_programs_for_candidate: Find all eligible programs for a specific candidate (requires person_id like P001)
 
-Always be professional and helpful. When presenting candidates, show their key demographic information.
+Always be professional and helpful. When presenting candidates or programs, show their key information.
+If a user asks about a person by name, use find_person_by_name first to get their person_id, then you can use find_programs_for_candidate.
 If a user asks about eligibility criteria, you can use the find_program_by_name tool to get program details first.
 """
+
+logger = make_logger(__name__)
 
 AGENT_TOOLS = [
     (list_all_programs, LIST_ALL_PROGRAMS_TOOL_DEF),
     (find_program_by_name, FIND_PROGRAM_BY_NAME_TOOL_DEF),
+    (find_person_by_name, FIND_PERSON_BY_NAME_TOOL_DEF),
     (find_candidates_for_program, FIND_CANDIDATES_FOR_PROGRAM_TOOL_DEF),
+    (find_programs_for_candidate, FIND_PROGRAMS_FOR_CANDIDATE_TOOL_DEF),
 ]
 
 MODEL = "gemini/gemini-2.5-flash"
 
+# Load environment variables from .env file local or parent directories
+load_dotenv(find_dotenv())
 
-# Load .env file
-load_dotenv()
+if (
+    not os.getenv("SGP_BASE_URL")
+    or not os.getenv("SGP_ACCOUNT_ID")
+    or not os.getenv("SGP_API_KEY")
+):
+    raise EnvironmentError(
+        "SGP_BASE_URL, SGP_ACCOUNT_ID, and SGP_API_KEY must be set in environment variables."
+    )
 
 # Initialize SGP client
 async_sgp_client = AsyncSGPClient(
@@ -55,9 +74,6 @@ async_sgp_client = AsyncSGPClient(
     account_id=os.getenv("SGP_ACCOUNT_ID"),
     api_key=os.getenv("SGP_API_KEY"),
 )
-async_sgp_client.beta.chat.completions.create
-
-logger = make_logger(__name__)
 
 # Create an ACP server
 acp = FastACP.create(acp_type="sync")
@@ -118,26 +134,28 @@ async def run_gemini_with_tools(
 
     message = response.choices[0].message
 
-    # Check if model wants to use tools
-    if hasattr(message, 'tool_calls') and message.tool_calls:
+    # Loop until we get a response without tool calls
+    while hasattr(message, "tool_calls") and message.tool_calls:
         logger.info(f"Model requested {len(message.tool_calls)} tool call(s)")
 
         # Append assistant message with tool calls to conversation
-        conversation.append({
-            "role": "assistant",
-            "content": message.content or "",
-            "tool_calls": [
-                {
-                    "id": tc.id,
-                    "type": "function",
-                    "function": {
-                        "name": tc.function.name,
-                        "arguments": tc.function.arguments
+        conversation.append(
+            {
+                "role": "assistant",
+                "content": message.content or "",
+                "tool_calls": [
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.function.name,
+                            "arguments": tc.function.arguments,
+                        },
                     }
-                }
-                for tc in message.tool_calls
-            ]
-        })
+                    for tc in message.tool_calls
+                ],
+            }
+        )
 
         # Execute each tool call
         for tool_call in message.tool_calls:
@@ -152,16 +170,18 @@ async def run_gemini_with_tools(
             logger.info(f"Tool result: {result}")
 
             # Append tool result to conversation
-            conversation.append({
-                "role": "tool",
-                "tool_call_id": tool_call.id,
-                "content": json.dumps(result)
-            })
+            conversation.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": json.dumps(result),
+                }
+            )
 
-        logger.info("Generating final answer with tool results...")
+        logger.info("Requesting next response with tool results...")
 
-        # Get final response with tool results
-        final_response = await async_sgp_client.beta.chat.completions.create(
+        # Get next response with tool results
+        response = await async_sgp_client.beta.chat.completions.create(
             model=model,
             messages=conversation,
             tools=tool_defs,
@@ -169,16 +189,11 @@ async def run_gemini_with_tools(
             max_tokens=max_tokens,
         )
 
-        logger.info(f"Final response: {final_response}")
+        logger.info(f"Response: {response}")
+        message = response.choices[0].message
 
-        response_text = final_response.choices[0].message.content
-    else:
-        logger.info("Model didn't request tool use")
-        response_text = message.content
-
-    return response_text
-
-
+    logger.info("Model returned final answer without tool calls")
+    return message.content
 
 
 @acp.on_message_send
@@ -225,7 +240,7 @@ async def handle_message_send(
             messages=state.input_list,
         )
     except Exception as e:
-        logger.exception(f"❌ Error handling message: {str(e)}")
+        logger.exception(f"Error handling message: {str(e)}")
         return TextContent(
             author="agent", content=f"Sorry, I encountered an error: {str(e)}"
         )

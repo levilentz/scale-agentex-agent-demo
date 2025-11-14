@@ -7,6 +7,7 @@ This project brings up the following environment:
     - [scale-agentex ui](scale-agentex/agentex-ui/README.md)
 2. web-agent: an agent that leverages the openai MCP server to get a web search tool to search the web
     - [web-search](web_search/README.md)
+3. patient-enrollment-agent: an agent that answers natural language queries about structured data (dummy data in CSVs).
 
 All of these components are dockerized. Once you bring them up you can browse to [https://localhost:3000](https://locahost:3000) to interact with the agents. 
 
@@ -34,7 +35,7 @@ SGP_BASE_URL=
 SGP_ACCOUNT_ID=
 ```
 
-These should go in a file called `.env` in the root directory (alonside your docker-compose file). 
+These should go in a file called `.env` in this root directory (alonside your docker-compose file). 
 
 ## Build "Slim" version
 

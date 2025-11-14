@@ -7,6 +7,11 @@ SGP_API_KEY = os.getenv("SGP_API_KEY")
 SGP_BASE_URL = os.getenv("SGP_BASE_URL")
 SGP_ACCOUNT_ID = os.getenv("SGP_ACCOUNT_ID")
 
+if not SGP_BASE_URL or not SGP_ACCOUNT_ID or not SGP_API_KEY:
+    raise EnvironmentError(
+        "SGP_BASE_URL, SGP_ACCOUNT_ID, and SGP_API_KEY must be set in environment variables."
+    )
+
 # Additional configuration
 max_retries = int(os.getenv("SGP_MAX_RETRIES", 3))
 timeout = float(os.getenv("SGP_TIMEOUT", 60.0))
