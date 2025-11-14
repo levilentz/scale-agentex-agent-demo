@@ -9,7 +9,7 @@ from agentex.lib.utils.logging import make_logger
 from agentex.types.task_message_content import TaskMessageContent
 from agentex.types.task_message_update import TaskMessageUpdate
 from agentex.types.text_content import TextContent
-from dotenv import load_dotenv, find_dotenv
+from dotenv import find_dotenv, load_dotenv
 from pydantic import BaseModel
 from scale_gp import AsyncSGPClient
 
@@ -44,6 +44,8 @@ If a user asks about a person by name, use find_person_by_name first to get thei
 If a user asks about eligibility criteria, you can use the find_program_by_name tool to get program details first.
 """
 
+logger = make_logger(__name__)
+
 AGENT_TOOLS = [
     (list_all_programs, LIST_ALL_PROGRAMS_TOOL_DEF),
     (find_program_by_name, FIND_PROGRAM_BY_NAME_TOOL_DEF),
@@ -54,9 +56,13 @@ AGENT_TOOLS = [
 
 MODEL = "gemini/gemini-2.5-flash"
 
-
 # Load environment variables from .env file local or parent directories
 load_dotenv(find_dotenv())
+
+if not os.getenv("SGP_BASE_URL") or not os.getenv("SGP_ACCOUNT_ID") or not os.getenv("SGP_API_KEY"):
+    raise EnvironmentError(
+        "SGP_BASE_URL, SGP_ACCOUNT_ID, and SGP_API_KEY must be set in environment variables."
+    )
 
 # Initialize SGP client
 async_sgp_client = AsyncSGPClient(
@@ -64,9 +70,6 @@ async_sgp_client = AsyncSGPClient(
     account_id=os.getenv("SGP_ACCOUNT_ID"),
     api_key=os.getenv("SGP_API_KEY"),
 )
-async_sgp_client.beta.chat.completions.create
-
-logger = make_logger(__name__)
 
 # Create an ACP server
 acp = FastACP.create(acp_type="sync")

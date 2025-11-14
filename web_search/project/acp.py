@@ -1,17 +1,16 @@
-import os
 import json
-from typing import AsyncGenerator, List, Optional, Any, Literal
+import os
+from typing import Any, AsyncGenerator, List, Literal, Optional
 
-from dotenv import load_dotenv, find_dotenv
-from pydantic import BaseModel
-
+from agentex.lib import adk
 from agentex.lib.sdk.fastacp.fastacp import FastACP
 from agentex.lib.types.acp import SendMessageParams
-from agentex.types.task_message_update import TaskMessageUpdate
-from agentex.types.task_message_content import TaskMessageContent
-from agentex.types.text_content import TextContent
 from agentex.lib.utils.logging import make_logger
-from agentex.lib import adk
+from agentex.types.task_message_content import TaskMessageContent
+from agentex.types.task_message_update import TaskMessageUpdate
+from agentex.types.text_content import TextContent
+from dotenv import find_dotenv, load_dotenv
+from pydantic import BaseModel
 
 from .clients.sgp_client import async_sgp_client
 
@@ -120,6 +119,14 @@ async def run_gemini_with_web_search(
     logger.info(f"📤 Sending request to Gemini with web search tool")
 
     # First request - model decides if it needs to search
+    adk.providers.litellm.chat_completion(
+        model=MODEL,
+        messages=messages,
+        tools=tools,
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
+    
     response = await async_sgp_client.beta.chat.completions.create(
         model=MODEL,
         messages=messages,
