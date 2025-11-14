@@ -247,5 +247,4 @@ async def handle_message_send(
         state=state,
     )
 
-    print("YOLO: ", response_text)
     return TextContent(author="agent", content=response_text)
