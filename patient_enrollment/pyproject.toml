@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "An AgentEx AI-Augmented Enrollment Agent for screening candidates."
 requires-python = ">=3.12"
 dependencies = [
-    "agentex-sdk>=0.6.5",
+    "agentex-sdk",
     "scale-gp",
     "python-dotenv>=1.2.1",
     "duckdb>=1.4.1",

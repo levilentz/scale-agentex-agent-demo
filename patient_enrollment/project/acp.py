@@ -12,6 +12,8 @@ from agentex.types.text_content import TextContent
 from dotenv import find_dotenv, load_dotenv
 from pydantic import BaseModel
 from scale_gp import AsyncSGPClient
+from agentex.lib.types.tracing import SGPTracingProcessorConfig
+from agentex.lib.core.tracing.tracing_processor_manager import add_tracing_processor_config
 
 from .tools import (
     FIND_CANDIDATES_FOR_PROGRAM_TOOL_DEF,
@@ -24,6 +26,15 @@ from .tools import (
     find_program_by_name,
     find_programs_for_candidate,
     list_all_programs,
+)
+
+add_tracing_processor_config(
+    SGPTracingProcessorConfig(
+        sgp_api_key=os.environ.get("SGP_API_KEY", ""),
+        sgp_account_id=os.environ.get("SGP_ACCOUNT_ID", ""),
+        # sgp_base_url="https://localhost:8000"
+        sgp_base_url=os.environ.get("SGP_BASE_URL", "")
+    )
 )
 
 AGENT_NAME = "Clinical Trial Enrollment Agent"
@@ -65,7 +76,7 @@ if (
     or not os.getenv("SGP_API_KEY")
 ):
     raise EnvironmentError(
-        "SGP_BASE_URL, SGP_ACCOUNT_ID, and SGP_API_KEY must be set in environment variables."
+        "SGP_BASE_URL, SGP_ACCOUNT_ID, and SGP_API_KEY must be set in environmental variables."
     )
 
 # Initialize SGP client
@@ -129,8 +140,6 @@ async def run_gemini_with_tools(
         temperature=temperature,
         max_tokens=max_tokens,
     )
-
-    logger.info(f"SGP Response: {response}")
 
     message = response.choices[0].message
 
@@ -202,7 +211,8 @@ async def handle_message_send(
 ) -> (
     TaskMessageContent
     | list[TaskMessageContent]
-    | AsyncGenerator[TaskMessageUpdate, None]
+    | AsyncGenerator[TaskMessageUpdate, None] 
+    | None
 ):
     """Handle incoming messages for clinical trial enrollment with AI agent."""
 
@@ -229,31 +239,47 @@ async def handle_message_send(
     else:
         state = StateModel.model_validate(task_state.state)
 
-    # Increment turn number
-    state.turn_number += 1
+    async with adk.tracing.span(
+        trace_id=params.task.id,
+        name=f"clinical_trial_turn_{state.turn_number}_task_{params.task.id}",
+        input=state,
+    ) as span:
+        state.turn_number += 1
 
-    # Add user message to history
-    state.input_list.append({"role": "user", "content": message_text})
+        # Add user message to history
+        state.input_list.append({"role": "user", "content": message_text})
 
-    try:
-        response_text = await run_gemini_with_tools(
-            messages=state.input_list,
+        try:
+            response_text = await run_gemini_with_tools(
+                messages=state.input_list,
+            )
+        except Exception as e:
+            logger.exception(f"Error handling message: {str(e)}")
+            return TextContent(
+                author="agent", content=f"Sorry, I encountered an error: {str(e)}"
+            )
+        logger.info("Response generated successfully")
+
+        # Add assistant response to history
+        state.input_list.append({"role": "assistant", "content": response_text})
+
+        span.output = state
+
+        await adk.state.update(
+           state_id=task_state.id,
+           task_id=params.task.id,
+           parent_span_id=span.id if span else None,
+           agent_id=params.agent.id,
+           state=state,
+           trace_id=params.task.id,
         )
-    except Exception as e:
-        logger.exception(f"Error handling message: {str(e)}")
-        return TextContent(
-            author="agent", content=f"Sorry, I encountered an error: {str(e)}"
+
+        await adk.messages.create(
+            task_id=params.task.id,
+            content=TextContent(
+                author="agent",
+                content=response_text,
+            ),
+            parent_span_id=span.id if span else None,
         )
-    logger.info("Response generated successfully")
-
-    # Add assistant response to history
-    state.input_list.append({"role": "assistant", "content": response_text})
-
-    await adk.state.update(
-        state_id=task_state.id,
-        task_id=params.task.id,
-        agent_id=params.agent.id,
-        state=state,
-    )
-
-    return TextContent(author="agent", content=response_text)
+    return None

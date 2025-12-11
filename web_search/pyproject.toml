@@ -9,7 +9,7 @@ description = "An AgentEx agent for web searching"
 requires-python = ">=3.12"
 readme = "README.md"
 dependencies = [
-    "agentex-sdk>=0.6.5",
+    "agentex-sdk",
     "scale-gp",
     "python-dotenv>=1.0.0",
     "ddgs>=1.0.0"
