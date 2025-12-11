@@ -1,5 +1,11 @@
 import json
+import os
 from typing import AsyncGenerator, List
+
+from dotenv import find_dotenv, load_dotenv
+
+# Load environment variables FIRST before any other imports that need them
+load_dotenv(find_dotenv())
 
 from agentex.lib import adk
 from agentex.lib.sdk.fastacp.fastacp import FastACP
@@ -8,15 +14,23 @@ from agentex.lib.utils.logging import make_logger
 from agentex.types.task_message_content import TaskMessageContent
 from agentex.types.task_message_update import TaskMessageUpdate
 from agentex.types.text_content import TextContent
-from dotenv import find_dotenv, load_dotenv
 from pydantic import BaseModel
+
+from agentex.lib.types.tracing import SGPTracingProcessorConfig
+from agentex.lib.core.tracing.tracing_processor_manager import add_tracing_processor_config
 
 from .clients.sgp_client import async_sgp_client
 
-# Load environment variables from .env file local or parent directories
-load_dotenv(find_dotenv())
-
 logger = make_logger(__name__)
+
+# Configure tracing BEFORE creating the ACP server
+add_tracing_processor_config(
+    SGPTracingProcessorConfig(
+        sgp_api_key=os.environ.get("SGP_API_KEY", ""),
+        sgp_account_id=os.environ.get("SGP_ACCOUNT_ID", ""),
+        sgp_base_url=os.environ.get("SGP_BASE_URL", "")
+    )
+)
 
 # Create an ACP server
 acp = FastACP.create(
@@ -253,11 +267,7 @@ def parse_messages_to_text_content(input_list: list[dict]) -> list[TextContent]:
 @acp.on_message_send
 async def handle_message_send(
     params: SendMessageParams,
-) -> (
-    TaskMessageContent
-    | list[TaskMessageContent]
-    | AsyncGenerator[TaskMessageUpdate, None]
-):
+) -> TaskMessageContent | list[TaskMessageContent] | AsyncGenerator[TaskMessageUpdate, None] | None:
     """
     Handle incoming messages with web search via custom Gemini implementation.
 
@@ -279,7 +289,6 @@ async def handle_message_send(
 
     logger.info(f"📨 Received message: {message_text}")
 
-    task = await adk.tasks.get(task_id=params.task.id)
     task_state = await adk.state.get_by_task_and_agent(
         task_id=params.task.id, agent_id=params.agent.id
     )
@@ -293,13 +302,17 @@ async def handle_message_send(
     else:
         state = StateModel.model_validate(task_state.state)
 
-    # Increment turn number
-    state.turn_number += 1
+    async with adk.tracing.span(
+        trace_id=params.task.id,
+        name=f"web_search_span_turn_{state.turn_number}_task_{params.task.id}",
+        input=state
+    ) as span:
+        # Increment turn number
+        state.turn_number += 1
 
-    # Add the new user message to the message history
-    state.input_list.append({"role": "user", "content": message_text})
+        # Add the new user message to the message history
+        state.input_list.append({"role": "user", "content": message_text})
 
-    try:
         # Run Gemini with web search capability
         response_text = await run_gemini_with_web_search(
             messages=state.input_list,
@@ -316,17 +329,28 @@ async def handle_message_send(
 
         logger.info("✅ Response generated successfully")
         # Return the response as TextContent
-        return TextContent(
-            author="agent",
-            content=response_text,
+        span.output = state
+
+        # Send the response to the frontend manually
+
+        await adk.state.update(
+           state_id=task_state.id,
+           task_id=params.task.id,
+           parent_span_id=span.id if span else None,
+           agent_id=params.agent.id,
+           state=state,
+           trace_id=params.task.id,
+        )
+        logger.info(f"✅ done with turn {state.turn_number}")
+        
+        await adk.messages.create(
+            task_id=params.task.id,
+            content=TextContent(
+                author="agent",
+                content=response_text,
+            ),
+            parent_span_id=span.id if span else None,
         )
 
-    except Exception as e:
-        logger.error(f"❌ Error handling message: {str(e)}")
-        import traceback
-        logger.error(traceback.format_exc())
+    return None
 
-        return TextContent(
-            author="agent",
-            content=f"Sorry, I encountered an error: {str(e)}\n\nPlease make sure:\n1. The SGP credentials are properly configured\n2. The ddgs package is installed (uv pip install ddgs)",
-        )
