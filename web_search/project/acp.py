@@ -23,12 +23,23 @@ from .clients.sgp_client import async_sgp_client
 
 logger = make_logger(__name__)
 
+if not (SGP_API_KEY := os.getenv("SGP_API_KEY")):
+    raise EnvironmentError("Missing SGP_API_KEY")
+
+if not (SGP_ACCOUNT_ID := os.getenv("SGP_ACCOUNT_ID")):
+    raise EnvironmentError("Missing SGP_ACCOUNT_ID")
+
+if not (SGP_BASE_URL := os.getenv("SGP_BASE_URL")):
+    raise EnvironmentError("Missing SGP_BASE_URL")
+
+MODEL = "vertex_ai/gemini-2.5-flash"
+
 # Configure tracing BEFORE creating the ACP server
 add_tracing_processor_config(
     SGPTracingProcessorConfig(
-        sgp_api_key=os.environ.get("SGP_API_KEY", ""),
-        sgp_account_id=os.environ.get("SGP_ACCOUNT_ID", ""),
-        sgp_base_url=os.environ.get("SGP_BASE_URL", "")
+        sgp_api_key=SGP_API_KEY,
+        sgp_account_id=SGP_ACCOUNT_ID,
+        sgp_base_url=SGP_BASE_URL,
     )
 )
 
@@ -36,8 +47,6 @@ add_tracing_processor_config(
 acp = FastACP.create(
     acp_type="sync",
 )
-
-MODEL = "gemini/gemini-2.5-flash"
 
 
 class StateModel(BaseModel):
