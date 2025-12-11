@@ -12,7 +12,7 @@ load_dotenv(find_dotenv())
 
 
 async def list_models_and_chat():
-    """List models and run a chat completion with an OpenAI model."""
+    """List models and run a chat completion with an chat completion model."""
     # Check for required environment variables
     if not os.getenv("SGP_API_KEY"):
         raise EnvironmentError(
@@ -29,7 +29,7 @@ async def list_models_and_chat():
     print("\nFetching available models...\n")
     print("=" * 80)
 
-    # List all models and find an OpenAI chat completion model
+    # List all models and find an chat completion model
     models_response = client.models.list()
     chat_model = None
 
@@ -40,7 +40,7 @@ async def list_models_and_chat():
         print(f"Model Vendor: {model.model_vendor}")
         print("-" * 80)
 
-        # Select the first OpenAI chat completion model we find
+        # Select the first chat completion model we find
         if (
             chat_model is None
             and model.model_type == "COMPLETION"
@@ -70,7 +70,7 @@ async def list_models_and_chat():
         print(response.choices[0].message.content)
         print("\n" + "-" * 80)
     else:
-        print("\n❌ No OpenAI chat completion model found.")
+        print("\n❌ No chat completion model found.")
         print("Available model types may be different. Check the list above.")
 
 
