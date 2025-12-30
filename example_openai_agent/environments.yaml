@@ -1,0 +1,23 @@
+# Agent Environment Configuration
+# ------------------------------
+# This file defines environment-specific settings for your agent.
+# This DIFFERS from the manifest.yaml file in that it is used to program things that are ONLY per environment.
+
+schema_version: "v1" # This is used to validate the file structure and is not used by the agentex CLI
+environments:
+  dev:
+    auth:
+      principal:
+        user_id: 
+        account_id: 
+    helm_overrides:
+      replicaCount: 2
+      resources:
+        requests:
+          cpu: "500m"
+          memory: "1Gi"
+        limits:
+          cpu: "1000m"
+          memory: "2Gi"
+    kubernetes:
+      namespace: agentex-dev
