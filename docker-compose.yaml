@@ -295,6 +295,31 @@ services:
       - agentex-network
     restart: unless-stopped
 
+  example-openai-agent:
+    build:
+      context: .
+      dockerfile: example_openai_agent/Dockerfile
+    environment:
+      - PYTHONPATH=/app
+      - AGENTEX_API_BASE_URL=http://agentex:5003
+      - AGENTEX_BASE_URL=http://agentex:5003
+      - TEMPORAL_ADDRESS=agentex-temporal:7233
+      - AGENT_NAME=example-openai-agent
+      - ACP_URL=http://example-openai-agent
+      - ACP_PORT=8000
+      - ACP_TYPE=sync
+      - REDIS_URL=redis://agentex-redis:6379
+      - SGP_API_KEY=${SGP_API_KEY}
+      - SGP_BASE_URL=${SGP_BASE_URL}
+      - SGP_ACCOUNT_ID=${SGP_ACCOUNT_ID}
+    container_name: example-openai-agent
+    depends_on:
+      agentex:
+        condition: service_healthy
+    networks:
+      - agentex-network
+    restart: unless-stopped
+
 volumes:
   agentex-temporal-postgres-data:
   agentex-postgres-data:
