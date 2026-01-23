@@ -33,7 +33,6 @@ WORKDIR /app/example_openai_agent
 ENV PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
 
 # Install the required Python packages using uv (as root for system site-packages), then drop privileges
-USER root
 RUN uv pip install --system .
 # Copy the project code
 COPY example_openai_agent/project /app/example_openai_agent/project
